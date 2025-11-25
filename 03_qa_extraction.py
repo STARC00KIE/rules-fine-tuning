@@ -73,14 +73,14 @@ def create_qa_chain():
         base_url=OPENAI_BASE_URL,
         api_key=OPENAI_API_KEY,
         model_name=MODEL_NAME,
-        temperature=0.7,
+        temperature=0.7, # 기본값이 0.7이고, 나중에 0.1 로 수정필요
         max_tokens=4096, # 최대 출력 토큰 수, 로컬은 토큰 압박 없기 때문에 최대한 크게 설정
     )
 
     # 2. 파서 설정
     parser = JsonOutputParser(pydantic_object=QAItem)
 
-    # 3. 프롬프트 템플릿 작성
+    # 3. 프롬프트 템플릿 작성 (이상하면 바꾸기)
     template_str = """You are an Expert HR Regulation Specialist and AI Dataset Generator.
 Your goal is to generate **1 high-quality Korean Q&A pair** to help employees understand company regulations.
 
