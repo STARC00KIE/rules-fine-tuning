@@ -46,3 +46,45 @@
 - LLM 파인튜닝: 2025. 12. 01. ~ 2025. 12. 05.
   - **학습**: 2025. 12. 01. ~ 2025. 12. 02.
   - **벤치마킹**: 2025. 12. 02. ~ 2025. 12. 05.
+
+---
+
+# 5. 파일 설명
+## 01_pdf_parse.ipynb
+- PDF 텍스트 추출 및 오류 전처리
+
+## 02_txt_chunking.ipynb
+- pdf에서 추출한 텍스트를 계층적 청킹 및 토큰 수 균등하게 분할
+
+## 03_qa_extraction.py
+- 합성 데이터 생성: Langchain과 OpenAI, vLLM, Qwen3-Coder-30B-A3B-Instruct를 활용하여 텍스트 데이터를 입력받아 예상 질문 생성
+
+---
+
+# 6. 실행 방법
+## 실행 환경
+- Linux
+- Python 3.10
+- Miniconda
+
+## 01_pdf_parse.ipynb
+- 라이브러리 설치
+  - pip install pymupdf
+- 실행
+  - jupyter notebook 01_pdf_parse.ipynb
+
+## 02_txt_chunking.ipynb
+- 라이브러리 설치
+  - 없음
+- 실행
+  - jupyter notebook 02_txt_chunking.ipynb
+
+## 03_qa_extraction.py
+- 라이브러리 설치
+  - pip install langchain-openai
+  - pip install langchain-core
+  - pip install pydantic
+  - pip install tqdm
+  - pip install openai
+- 실행
+  - python 03_qa_extraction.py
