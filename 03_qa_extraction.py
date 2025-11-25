@@ -19,7 +19,7 @@ DATA_DIR = "./data/chunking_chapters_len_preprocess_final"
 OUTPUT_FILE = "./data/QA/qwen3-coder-A3B-instruct/qa_dataset.json"
 
 # vLLM 서버 정보
-OPENAI_BASE_URL = "http://localhost:8000/v1" # vLLM 서버 주소, 앞으로 보고 바꾸면 될듯?
+OPENAI_BASE_URL = "http://localhost:8001/v1" # vLLM 서버 주소, 앞으로 보고 바꾸면 될듯?
 OPENAI_API_KEY = "EMPTY" # 로컬에서 실행할 거라 비어있음 처리
 MODEL_NAME = "Qwen/Qwen3-Coder-30B-A3B-Instruct" # 사용할 모델 이름
 
@@ -140,6 +140,7 @@ TYPE_CONFIG = {
     }
 }
 
+# 데이터 생성 함수
 def generate_dataset(context_dict):
     chain = create_qa_chain() # 체인 생성
     dataset = []
