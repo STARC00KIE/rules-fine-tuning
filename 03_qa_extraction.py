@@ -5,6 +5,8 @@ import math
 from tqdm import tqdm
 from typing import List, Optional
 import logging
+import time
+from datetime import datetime
 
 # LangChain 관련 기능 임포트
 from langchain_openai import ChatOpenAI
@@ -18,7 +20,13 @@ from pydantic import BaseModel, Field
 # 컨텍스트 데이터 주소와 출력 파일명
 DATA_DIR = "./data/chunking_chapters_len_preprocess_final"
 OUTPUT_FILE = "./data/QA/qwen3-coder-A3B-instruct/qa_dataset.json" # 기본 파일명 (온도에 따라 이름 변경 예정)
-LOG_FILE = "./logs/qa_generation.log" # <-- 로그 파일 경로 추가
+
+# --- 로그 파일명 명명 규칙 적용 ---
+# 1. 현재 시각을 YYYYMMDD_HHMMSS 형식으로 포맷
+timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+# 2. 로그 파일명 설정: qa_extraction_YYYYMMDD_HHMMSS.log
+LOG_FILE = f"./logs/03_qa_extraction_{timestamp}.log"
+# -----------------------------------
 
 # vLLM 서버 정보
 OPENAI_BASE_URL = "http://localhost:8001/v1" # vLLM 서버 주소, 앞으로 보고 바꾸면 될듯?
@@ -45,6 +53,7 @@ logging.basicConfig(
     ]
 )
 logger = logging.getLogger(__name__) # 스크립트 이름으로 로거 생성
+logger.info(f"로깅 시작. 로그 파일 경로: {LOG_FILE}")
 
 """
 # [구조 정의] llm이 출력해야 할 JSON 형식에 대한 정의
@@ -167,6 +176,9 @@ TYPE_CONFIG = {
 
 # [실행 로직] 데이터 생성 및 저장 (수정됨)
 def generate_dataset(context_dict, chain):
+    # 전체 시작 시간 기록
+    start_time_total = time.time()
+
     dataset = []
     total_len = sum(len(t) for t in context_dict.values())
     if total_len == 0:
@@ -177,8 +189,12 @@ def generate_dataset(context_dict, chain):
     logger.info(f"📊 데이터 생성 시작 (총 텍스트: {total_len}자, 목표: {target_count}개)") # <-- 로깅
     
     for fname, text in context_dict.items():
+        # 파일별 시작 시간 기록
+        start_time_file = time.time()
+
         ratio = len(text) / total_len
-        logger.info(f"\n--- 파일 처리 시작: [{fname}] ({len(text)}자, 비율: {ratio:.2f}) ---") # <-- 로깅
+        logger.info("=======================================================")
+        logger.info(f"파일 처리 시작: [{fname}] ({len(text)}자, 비율: {ratio:.2f})") # <-- 로깅
         
         for cat, target in TOTAL_TARGETS.items():
             count = max(1, math.floor(target * ratio)) # 이만큼을 한 번에 생성
@@ -228,13 +244,28 @@ def generate_dataset(context_dict, chain):
                     item_dict['source_file'] = fname
                     dataset.append(item_dict)
 
-    logger.info(f"✅ 데이터 생성 완료. 총 {len(dataset)}개의 QA 쌍이 준비되었습니다.") # <-- 로깅
+            # --- 파일별 종료 시간 기록 ---
+            end_time_file = time.time()
+            elapsed_time_file = end_time_file - start_time_file
+            logger.info(f"⏳ [{fname}, {cat}] 처리 완료. 소요 시간: {elapsed_time_file:.2f}초")
+            # -----------------------------
+
+        # --- 전체 종료 시간 기록 ---
+        end_time_total = time.time()
+        elapsed_time_total = end_time_total - start_time_total
+        logger.info(f"✅ 데이터 생성 완료. 총 {len(dataset)}개의 QA 쌍이 준비되었습니다.")
+        logger.info(f"⏱️ **전체 데이터셋 생성 총 소요 시간: {elapsed_time_total:.2f}초**")
+        # ---------------------------
     return dataset
 
 """
 # 메인 실행부
 """
 if __name__ == "__main__":
+    # --- 전체 스크립트 실행 시작 시간 기록 ---
+    script_start_time = time.time()
+    # ----------------------------------------
+    
     # 1. 파일 로드
     context_data = load_files()
     
@@ -245,12 +276,12 @@ if __name__ == "__main__":
         # round(i * 0.1, 1)을 사용하여 부동 소수점 오류 방지
         temperatures = [round(i * 0.1, 1) for i in range(11)]
 
-        logger.info(f"\n--- 총 {len(temperatures)}개의 온도 설정을 반복합니다: {temperatures} ---")
+        logger.info(f"총 {len(temperatures)}개의 온도 설정을 반복합니다: {temperatures}")
         
         for temp in temperatures:
-            logger.info(f"\n=======================================================")
+            logger.info("=======================================================")
             logger.info(f"       DATA GENERATION START - TEMPERATURE: {temp:.1f}")
-            logger.info(f"=======================================================")
+            logger.info("=======================================================")
 
             # 2. 체인 생성 (변경된 온도 적용)   
             qa_chain = create_qa_chain(temp)
@@ -267,6 +298,13 @@ if __name__ == "__main__":
             with open(temp_output_file, "w", encoding="utf-8") as f:
                 json.dump(final_data, f, ensure_ascii=False, indent=2)
                 
-            logger.info(f"\n[SUCCESS] 총 {len(final_data)}개의 데이터셋이 '{temp_output_file}'에 저장되었습니다.")
-            
-        logger.info("\n=== 모든 온도 설정에 대한 데이터 생성이 완료되었습니다. ===")
+            logger.info(f"[SUCCESS] 총 {len(final_data)}개의 데이터셋이 '{temp_output_file}'에 저장되었습니다.")
+
+
+        # --- 전체 스크립트 실행 종료 시간 기록 ---
+        script_end_time = time.time()
+        script_elapsed_time = script_end_time - script_start_time
+        logger.info("=== 모든 온도 설정에 대한 데이터 생성이 완료되었습니다. ===")
+        logger.info(f"🚀 **스크립트 전체 실행 시간 (시작~종료): {script_elapsed_time:.2f}초**")
+        # ------------------------------------------  
+        
