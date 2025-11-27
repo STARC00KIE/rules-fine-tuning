@@ -21,7 +21,7 @@
 - 계층적 청킹: 문서의 목차, 장, 절과 같은 계층적 구조를 파악 후 청킹 진행
 
 # 3.2 QA 데이터셋 생성	
-- 합성 데이터 생성: GPT-4o를 활용, 텍스트 데이터를 입력받아 예상 질문 생성
+- 합성 데이터 생성: Qwen3-Coder-30B-A3B-Instruct를 활용, 텍스트 데이터를 입력받아 예상 질문 생성
 - 질문 유형 다변화:
   - 단순 조회형(150): 숫자, 기간 등 명시적 정보 (예: "경조사 휴가 일수는?")
   - 절차형(100): 신청 방법, 제출 서류 등 프로세스 (예: "육아휴직 신청 절차는?")
@@ -59,6 +59,9 @@
 ## 03_qa_extraction.py
 - 합성 데이터 생성: Langchain과 OpenAI, vLLM, Qwen3-Coder-30B-A3B-Instruct를 활용하여 텍스트 데이터를 입력받아 예상 질문 생성
 
+## 04_qa_validation.ipynb
+- 합성 데이터 검증: 합성 데이터의 질문-답변 쌍이 정확한지 확인
+
 ---
 
 # 6. 실행 방법
@@ -66,6 +69,7 @@
 - Linux
 - Python 3.10
 - Miniconda
+- jpype 1.5.2
 
 ## 01_pdf_parse.ipynb
 - 라이브러리 설치
@@ -88,3 +92,12 @@
   - pip install openai
 - 실행
   - python 03_qa_extraction.py
+
+## 04_qa_validation.ipynb
+- 라이브러리 설치
+  - pip install konlpy
+  - pip install scikit-learn
+  - pip install numpy
+  - pip install pandas
+- 실행
+  - jupyter notebook 04_qa_validation.ipynb
