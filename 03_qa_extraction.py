@@ -114,17 +114,20 @@ def create_qa_chain(temperature: float): # <--- temperature를 인수로 받도�
     parser = JsonOutputParser(pydantic_object=QAList)
 
     # 3. 프롬프트 템플릿 작성
+    # 부정형 answer가 영어로 출력되는지 확인 필요함
     template_str = """You are an Expert HR Regulation Specialist and AI Dataset Generator.
-Your goal is to generate **{num_to_generate} high-quality Korean Q&A pair** to help employees understand company regulations.
+Your goal is to generate **{num_to_generate} high-quality Korean Q&A pairs** to help employees understand company regulations.
 
 ### Context (Company Regulations):
 {context}
 
 ### Strict Constraints:
-1. **Source of Truth**: You must generate questions and answers based **ONLY** on the provided context. Do not use outside knowledge or general labor laws.
-2. **Handling Missing Info**: If the instruction asks about a topic NOT in the context, your answer must explicitly state that "Such information is not found in the regulations" or "It is not specified." Do NOT invent fake rules.
-3. **Completeness**: The ANSWER must be a complete, polite Korean sentence.
-4. **Clarity**: The QUESTION should be self-contained and clear without looking at the context.
+1. **Language Consistency (CRITICAL)**: Both QUESTION and ANSWER must be **STRICTLY generated in Korean (한국어)**. Do NOT use English.
+2. **Source of Truth**: You must generate questions and answers based **ONLY** on the provided context. Do not use outside knowledge or general labor laws.
+3. **Handling Missing Info (Negative QA)**: If the instruction asks about a topic NOT in the context, you must logically verify its absence and answer in Korean: "제공된 규정에 관련 내용이 없습니다." Do NOT invent fake rules.
+4. **No Subjective Interpretation**: Do not infer priority (e.g., "most important"), intent, or subjective value unless explicitly written in the text. Stick to the facts presented.
+5. **Completeness**: The ANSWER must be a complete, polite Korean sentence (e.g., ~합니다, ~입니다).
+6. **Clarity**: The QUESTION should be self-contained and clear without looking at the context.
 
 ### Task Requirements:
 - **Type**: {type_desc}
@@ -138,6 +141,35 @@ Your goal is to generate **{num_to_generate} high-quality Korean Q&A pair** to h
 
 IMPORTANT: Return ONLY the JSON object properly formatted.
 """
+
+    # 이전에 사용했던 프롬프트: 부정형 answer가 영어로 출력되서 변경 진행
+    # "Such information is not found in the regulations" or "It is not specified." 이 부분 때문에 부정형에서 영어로 출력됨
+    before_template_str = """You are an Expert HR Regulation Specialist and AI Dataset Generator.
+Your goal is to generate **{num_to_generate} high-quality Korean Q&A pair** to help employees understand company regulations.
+
+### Context (Company Regulations):
+{context}
+
+### Strict Constraints:
+1. **Source of Truth**: You must generate questions and answers based **ONLY** on the provided context. Do not use outside knowledge or general labor laws.
+2. **Handling Missing Info**: If the instruction asks about a topic NOT in the context, your answer must explicitly state that "Such information is not found in the regulations" or "It is not specified." Do NOT invent fake rules.
+3. **Completeness**: The ANSWER must be a complete, polite Korean sentence.
+4. **Clarity**: The QUESTION should be self-contained and clear without looking at the context.
+5. **Language Consistency**: Both QUESTION and ANSWER must be **STRICTLY** generated in **Korean (한국어)**.
+
+### Task Requirements:
+- **Type**: {type_desc}
+- **Instruction**: {instruction}
+- **Example Question**: {ex_q}
+- **Example Answer**: {ex_a}
+- **Language**: Korean (한국어)
+
+### Output Format:
+{format_instructions}
+
+IMPORTANT: Return ONLY the JSON object properly formatted.
+"""
+
     prompt = PromptTemplate(
         template=template_str,
         input_variables=["context", "type_desc", "instruction", "ex_q", "ex_a", "num_to_generate"],
@@ -274,7 +306,7 @@ if __name__ == "__main__":
     else:
         # 온도 설정 (0.0부터 1.0까지 0.1씩 증가)
         # round(i * 0.1, 1)을 사용하여 부동 소수점 오류 방지
-        temperatures = [round(i * 0.1, 1) for i in range(11)]
+        temperatures = [round(i * 0.1, 1) for i in range(2, 11)]
 
         logger.info(f"총 {len(temperatures)}개의 온도 설정을 반복합니다: {temperatures}")
         
