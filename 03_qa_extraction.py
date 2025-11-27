@@ -128,10 +128,11 @@ Your goal is to generate **{num_to_generate} high-quality Korean Q&A pairs** to 
 4. **No Subjective Interpretation**: Do not infer priority (e.g., "most important"), intent, or subjective value unless explicitly written in the text. Stick to the facts presented.
 5. **Completeness**: The ANSWER must be a complete, polite Korean sentence (e.g., ~합니다, ~입니다).
 6. **Clarity**: The QUESTION should be self-contained and clear without looking at the context.
+7. **Source Format**: The `source` field must contain the **full text segment** (Article number + Title + Content) that supports the answer. Do not abbreviate.
 
 ### Task Requirements:
 - **Type**: {type_desc}
-- **Instruction**: {instruction}
+- **Instruction**: {instruction} (if any)
 - **Example Question**: {ex_q}
 - **Example Answer**: {ex_a}
 - **Language**: Korean (한국어)
