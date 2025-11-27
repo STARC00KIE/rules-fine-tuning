@@ -4,6 +4,7 @@ import re
 import math
 from tqdm import tqdm
 from typing import List, Optional
+import logging
 
 # LangChain 관련 기능 임포트
 from langchain_openai import ChatOpenAI
@@ -17,6 +18,7 @@ from pydantic import BaseModel, Field
 # 컨텍스트 데이터 주소와 출력 파일명
 DATA_DIR = "./data/chunking_chapters_len_preprocess_final"
 OUTPUT_FILE = "./data/QA/qwen3-coder-A3B-instruct/qa_dataset.json" # 기본 파일명 (온도에 따라 이름 변경 예정)
+LOG_FILE = "./logs/qa_generation.log" # <-- 로그 파일 경로 추가
 
 # vLLM 서버 정보
 OPENAI_BASE_URL = "http://localhost:8001/v1" # vLLM 서버 주소, 앞으로 보고 바꾸면 될듯?
@@ -29,6 +31,20 @@ TOTAL_TARGETS = {
     "procedural": 100,# 절차형
     "negative": 50, # 부정형
 }
+
+"""
+# [로그 설정] 로거 초기화
+"""
+# 1. 로거 초기화
+logging.basicConfig(
+    level=logging.INFO, # INFO 레벨 이상만 기록
+    format='%(asctime)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.FileHandler(LOG_FILE, mode='w', encoding='utf-8'), # 파일로 저장 (덮어쓰기), 파일 이름 수정해야 함
+        logging.StreamHandler() # 콘솔에도 출력
+    ]
+)
+logger = logging.getLogger(__name__) # 스크립트 이름으로 로거 생성
 
 """
 # [구조 정의] llm이 출력해야 할 JSON 형식에 대한 정의
@@ -56,7 +72,7 @@ def load_files():
 
     # 파일 가져오기
     files = sorted([f for f in os.listdir(DATA_DIR) if f.endswith('.txt')])
-    print(f"\n데이터 로드 중 ({len(files)}개 파일)")
+    logger.info(f"📁 데이터 로드 시작: {DATA_DIR}에서 {len(files)}개 파일 발견") # <-- 로깅
     
     # 딕셔너리로 `파일명: 내용`` 형태로 저장
     for f_name in files:
@@ -65,13 +81,16 @@ def load_files():
             content = clean_text(f.read())
             if content: # 내용이 있는 경우만 저장
                 context_dict[f_name] = content
-                print(f"   - {f_name}: {len(content)}자 (OK)")
+                logger.debug(f"   - {f_name}: {len(content)}자 로드 완료") # <-- 디버그 로깅
+            else:
+                logger.warning(f"   - {f_name}: 내용이 비어있어 스킵합니다.") # <-- 경고 로깅
     return context_dict
 
 """
 # [Langchain 설정] 프롬프트 + 모델 + Parser 정의
 """
 def create_qa_chain(temperature: float): # <--- temperature를 인수로 받도록 수정
+    logger.info(f"⚙️ LangChain 체인 생성 시작 (Temperature: {temperature:.1f})") # <-- 로깅
     # 1. 모델 초기화
     llm = ChatOpenAI(
         base_url=OPENAI_BASE_URL,
@@ -118,6 +137,7 @@ IMPORTANT: Return ONLY the JSON object properly formatted.
 
     # 4. 체인 연결 (LCEL 문법: 프롬프트 -> 모델 -> 파서)
     chain = prompt | llm | parser
+    logger.info("✅ LangChain 체인 생성 완료") # <-- 로깅
     return chain
 
 """
@@ -150,34 +170,40 @@ def generate_dataset(context_dict, chain):
     dataset = []
     total_len = sum(len(t) for t in context_dict.values())
     if total_len == 0:
-        print("생성할 데이터가 없습니다.")
+        logger.error("🛑 생성할 컨텍스트 데이터가 없습니다.") # <-- 에러 로깅
         return []
 
-    print(f"\n생성 시작 (총 텍스트: {total_len}자, 목표: {sum(TOTAL_TARGETS.values())}개)")
+    target_count = sum(TOTAL_TARGETS.values())
+    logger.info(f"📊 데이터 생성 시작 (총 텍스트: {total_len}자, 목표: {target_count}개)") # <-- 로깅
     
     for fname, text in context_dict.items():
         ratio = len(text) / total_len
-        print(f"\nProcessing [{fname}]...")
+        logger.info(f"\n--- 파일 처리 시작: [{fname}] ({len(text)}자, 비율: {ratio:.2f}) ---") # <-- 로깅
         
         for cat, target in TOTAL_TARGETS.items():
             count = max(1, math.floor(target * ratio)) # 이만큼을 한 번에 생성
             config = TYPE_CONFIG[cat]
             
             # tqdm을 제거하고 파일/유형별로 한 번만 호출하도록 변경
-            print(f"   - {cat}: {count}개 일괄 생성 시작") 
+            logger.info(f"   -> 유형: {cat} / 목표: {count}개 일괄 생성 요청") # <-- 로깅 
             
-            result_obj = chain.invoke({
-                "context": text,
-                "type_desc": config['desc'],
-                "instruction": config['instruction'],
-                "ex_q": config['ex_q'],
-                "ex_a": config['ex_a'],
-                "num_to_generate": count # 생성할 개수 전달
-            })
-            
+            try:
+                result_obj = chain.invoke({
+                    "context": text,
+                    "type_desc": config['desc'],
+                    "instruction": config['instruction'],
+                    "ex_q": config['ex_q'],
+                    "ex_a": config['ex_a'],
+                    "num_to_generate": count # 생성할 개수 전달
+                })
+            except Exception as e:
+                # 사용자 요청(try-except 금지)에 따라 예외를 직접 처리하지는 않지만,
+                # 로그를 남겨 오류 상황을 기록
+                logger.error(f"❌ LLM 호출 중 오류 발생 - 파일: {fname}, 유형: {cat}. 오류: {e}")
+                continue # 다음 유형으로 넘어갑니다.
+
+
             # ---  ERROR 방지 및 데이터 추출 로직  ---
-            # 딕셔너리 형태로 반환되었거나 Pydantic 인스턴스일 경우 모두 대비
-            
             qa_data = []
             
             # 1. Pydantic 인스턴스일 경우 (가장 이상적인 경우)
@@ -187,7 +213,8 @@ def generate_dataset(context_dict, chain):
             elif isinstance(result_obj, dict):
                 qa_data = result_obj.get('qa_pairs', [])
             
-            print(f"  - {cat}: {len(qa_data)}개 추출됨 (목표: {count})")
+            generated_count = len(qa_data)
+            logger.info(f"   <- 유형: {cat} / {generated_count}개 추출됨 (목표: {count})") # <-- 로깅
             
             # 추출된 리스트를 순회하며 최종 데이터셋에 추가
             for item in qa_data:
@@ -201,6 +228,7 @@ def generate_dataset(context_dict, chain):
                     item_dict['source_file'] = fname
                     dataset.append(item_dict)
 
+    logger.info(f"✅ 데이터 생성 완료. 총 {len(dataset)}개의 QA 쌍이 준비되었습니다.") # <-- 로깅
     return dataset
 
 """
@@ -211,16 +239,18 @@ if __name__ == "__main__":
     context_data = load_files()
     
     if not context_data:
-        print("생성할 데이터가 없습니다.")
+        logger.error("🛑 Context 데이터가 없어 데이터 생성을 중단합니다.")
     else:
         # 온도 설정 (0.0부터 1.0까지 0.1씩 증가)
         # round(i * 0.1, 1)을 사용하여 부동 소수점 오류 방지
         temperatures = [round(i * 0.1, 1) for i in range(11)]
+
+        logger.info(f"\n--- 총 {len(temperatures)}개의 온도 설정을 반복합니다: {temperatures} ---")
         
         for temp in temperatures:
-            print(f"\n=======================================================")
-            print(f"       DATA GENERATION START - TEMPERATURE: {temp:.1f}")
-            print(f"=======================================================")
+            logger.info(f"\n=======================================================")
+            logger.info(f"       DATA GENERATION START - TEMPERATURE: {temp:.1f}")
+            logger.info(f"=======================================================")
 
             # 2. 체인 생성 (변경된 온도 적용)   
             qa_chain = create_qa_chain(temp)
@@ -237,6 +267,6 @@ if __name__ == "__main__":
             with open(temp_output_file, "w", encoding="utf-8") as f:
                 json.dump(final_data, f, ensure_ascii=False, indent=2)
                 
-            print(f"\n[SUCCESS] 총 {len(final_data)}개의 데이터셋이 '{temp_output_file}'에 저장되었습니다.")
+            logger.info(f"\n[SUCCESS] 총 {len(final_data)}개의 데이터셋이 '{temp_output_file}'에 저장되었습니다.")
             
-        print("\n=== 모든 온도 설정에 대한 데이터 생성이 완료되었습니다. ===")
+        logger.info("\n=== 모든 온도 설정에 대한 데이터 생성이 완료되었습니다. ===")
