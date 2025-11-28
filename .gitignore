@@ -7,3 +7,11 @@ logs/
 
 # 임시 파일 무시
 temp/
+
+# 환경 변수 파일 (절대 커밋 금지)
+.env
+.env.local
+
+# 캐시 파일 등
+__pycache__/
+*.pyc
