@@ -15,3 +15,6 @@ temp/
 # 캐시 파일 등
 __pycache__/
 *.pyc
+
+# 설정 파일 무시
+config.py
